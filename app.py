@@ -342,93 +342,66 @@ def _get(page, label_re):
 
 
 def extract_records_from_pdf(pdf_path):
-    """
-    Parse the PDF using pdftotext -layout.
-    Each form is exactly one page (separated by form-feed \f).
-    Returns a list of record dicts.
-    """
-    add_log("📖 Reading PDF with pdftotext...", 'info')
-
+    """Parse PDF using pdfplumber (works on Railway, no external deps)."""
+    add_log("📖 Reading PDF with pdfplumber...", 'info')
+    records = []
+    
     try:
-        result = subprocess.run(
-            ['pdftotext', '-layout', pdf_path, '-'],
-            capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"pdftotext failed: {result.stderr}")
-
-        pages = result.stdout.split('\f')
-        add_log(f"📄 {len(pages)} pages found in PDF", 'info')
-
-        records = []
-        skipped = 0
-
-        for page in pages:
-            page = page.strip()
-            # Skip blank pages or pages without a form number
-            if not page or not re.search(r'Form No\.', page, re.IGNORECASE):
-                skipped += 1
-                continue
-
-            # ── Side-by-side inline fields ──────────────────────────
-            # Layout: "Form No.: 1        Centre Code: 121181"
-            form_no_m  = re.search(r'Form No\.\s*:\s*(\d+)', page)
-            centre_m   = re.search(r'Centre Code\s*:\s*(\S+)', page)
-
-            # "Name: Kamble Kulkarni          Feedback ID: 1120323044"
-            name_m     = re.search(r'^Name\s*:\s*(.*?)(?=\s{3,}Feedback ID|\n)', page, re.MULTILINE)
-            feedback_m = re.search(r'Feedback ID\s*:\s*(\S+)', page)
-
-            # "Cities: Hisar          Age: 20"
-            cities_m   = re.search(r'Cities\s*:\s*(.*?)(?=\s{3,}Age\s*:|\n)', page, re.MULTILINE)
-            age_m      = re.search(r'(?<!\w)Age\s*:\s*(\d+)', page)
-
-            # "Marital Status: Married          Education: Post Graduate"
-            marital_m  = re.search(r'Marital Status\s*:\s*(\w+)', page)
-            edu_m      = re.search(r'Education\s*:\s*(.*?)(?=\s{3,}|\n)', page)
-
-            record = {
-                'form_no':           form_no_m.group(1).strip()  if form_no_m  else '',
-                'center_code':       centre_m.group(1).strip()   if centre_m   else '',
-                'name':              name_m.group(1).strip()     if name_m     else '',
-                'feedback_id':       feedback_m.group(1).strip() if feedback_m else '',
-                'city':              cities_m.group(1).strip()   if cities_m   else '',
-                'age':               age_m.group(1).strip()      if age_m      else '',
-                'marital_status':    marital_m.group(1).strip()  if marital_m  else '',
-                'education':         edu_m.group(1).strip()      if edu_m      else '',
-
-                # ── Multi-line fields (stop before next label) ──────
-                'hobbies':           _get(page, r'Hobbies'),
-                'instagram_benefit': _get(page, r'Instagram Benefits for Business'),
-                'job_role':          _get(page, r'What is your primary Job role[^:\n?]*'),
-                'marketing_task':    _get(page, r'What type of marketing Task[^:\n?]*'),
-                'usage_frequency':   _get(page, r'How often do you use instagram[^:\n?]*'),
-                'importance':        _get(page, r'How important is instagram[^:\n?]*'),
-                'hear_about':        _get(page, r'How did you hear about Instagram\?'),
-
-                # Fields not in the PDF — filled from dashboard config at runtime
-                'gender':     '',   # not in PDF
-                'state':      '',   # not in PDF
-                'email':      '',   # not in PDF
-                'evc_code':   '',   # from config
-                'hashtag':    '',   # not in PDF
-            }
-
-            if record.get('name'):
-                records.append(record)
-
-        add_log(f"✅ Extracted {len(records)} records ({skipped} blank pages skipped)", 'success')
+        with pdfplumber.open(pdf_path) as pdf:
+            add_log(f"📄 {len(pdf.pages)} pages found", 'info')
+            
+            for page_num, page in enumerate(pdf.pages):
+                text = page.extract_text()
+                
+                if not text or 'Form No.' not in text:
+                    continue
+                
+                # Extract fields using regex
+                record = {
+                    'form_no': _extract_field(text, r'Form No\.\s*:\s*(\d+)'),
+                    'center_code': _extract_field(text, r'Centre Code\s*:\s*(\S+)'),
+                    'name': _extract_field(text, r'Name\s*:\s*(.*?)(?=\s{2,}Feedback ID|\n)', True),
+                    'feedback_id': _extract_field(text, r'Feedback ID\s*:\s*(\S+)'),
+                    'city': _extract_field(text, r'Cities\s*:\s*(.*?)(?=\s{2,}Age\s*:|\n)', True),
+                    'age': _extract_field(text, r'(?<!\w)Age\s*:\s*(\d+)'),
+                    'marital_status': _extract_field(text, r'Marital Status\s*:\s*(\w+)'),
+                    'education': _extract_field(text, r'Education\s*:\s*(.*?)(?=\s{2,}|\n)', True),
+                    'hobbies': _extract_field(text, r'Hobbies\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'instagram_benefit': _extract_field(text, r'Instagram Benefits for Business\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'job_role': _extract_field(text, r'What is your primary Job role[^:\n?]*\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'marketing_task': _extract_field(text, r'What type of marketing Task[^:\n?]*\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'usage_frequency': _extract_field(text, r'How often do you use instagram[^:\n?]*\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'importance': _extract_field(text, r'How important is instagram[^:\n?]*\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'hear_about': _extract_field(text, r'How did you hear about Instagram\?\s*:\s*(.*?)(?=\n\s*(?:Form No\.|Centre Code|Name|Feedback ID|Cities|Age|Actual Date|Marital Status|Education|Hobbies|Instagram Benefits|What is your primary|What type of marketing|How often|How important|How did you hear)|\Z)', True),
+                    'gender': '',
+                    'state': '',
+                    'email': '',
+                    'evc_code': '',
+                    'hashtag': '',
+                }
+                
+                if record.get('name'):
+                    records.append(record)
+                    add_log(f"  ✓ Extracted: {record['name']} (Form {record['form_no']})", 'info')
+        
+        add_log(f"✅ Extracted {len(records)} records successfully", 'success')
         return records
-
-    except FileNotFoundError:
-        add_log("❌ pdftotext not found. Install poppler-utils:", 'error')
-        add_log("   Ubuntu/Debian: sudo apt install poppler-utils", 'error')
-        add_log("   Mac:           brew install poppler", 'error')
-        add_log("   Windows:       https://github.com/oschwartz10612/poppler-windows", 'error')
-        return []
+        
     except Exception as e:
-        add_log(f"❌ PDF extraction error: {e}", 'error')
+        add_log(f"❌ PDF extraction error: {str(e)}", 'error')
+        import traceback
+        add_log(traceback.format_exc(), 'error')
         return []
+
+def _extract_field(text, pattern, multiline=False):
+    """Helper to extract single field from text."""
+    m = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+    if m:
+        val = m.group(1).strip()
+        if multiline:
+            val = re.sub(r'\s*\n\s*', ' ', val)
+        return val
+    return ''
 
 
 # ═══════════════════════════════════════════════
