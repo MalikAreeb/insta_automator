@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>E-Insta Feedback Bot</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap");
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0d0f14;
+        --surface: #161a23;
+        --border: #262b38;
+        --accent: #5b9cf6;
+        --green: #3ecf8e;
+        --red: #f76e6e;
+        --yellow: #f7c948;
+        --text: #e2e8f0;
+        --muted: #8892a4;
+        --font-ui: "Syne", sans-serif;
+        --font-mono: "JetBrains Mono", monospace;
+        --radius: 10px;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-ui);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* ── Top bar ── */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 28px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+      }
+      header .logo {
+        width: 36px;
+        height: 36px;
+        background: var(--accent);
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+      }
+      header h1 {
+        font-size: 1.15rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      header span {
+        color: var(--muted);
+        font-size: 0.78rem;
+        margin-left: 8px;
+      }
+      .pill {
+        margin-left: auto;
+        padding: 4px 12px;
+        border-radius: 99px;
+        font-size: 0.72rem;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        background: #1e2631;
+        border: 1px solid var(--border);
+        color: var(--muted);
+        transition:
+          background 0.3s,
+          color 0.3s;
+      }
+      .pill.running {
+        background: #112d22;
+        border-color: var(--green);
+        color: var(--green);
+      }
+      .pill.stopped {
+        background: #2d1111;
+        border-color: var(--red);
+        color: var(--red);
+      }
+
+      /* ── Main grid ── */
+      main {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 0;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* ── Sidebar ── */
+      aside {
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        padding: 24px 20px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .section-label {
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+
+      /* ── Upload zone ── */
+      .upload-zone {
+        border: 2px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 22px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition:
+          border-color 0.25s,
+          background 0.25s;
+        position: relative;
+      }
+      .upload-zone:hover,
+      .upload-zone.drag {
+        border-color: var(--accent);
+        background: #1a2030;
+      }
+      .upload-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+        height: 100%;
+      }
+      .upload-zone .icon {
+        font-size: 28px;
+        margin-bottom: 8px;
+      }
+      .upload-zone p {
+        font-size: 0.82rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .upload-zone .filename {
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        margin-top: 6px;
+      }
+
+      /* ── Form fields ── */
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field label {
+        font-size: 0.75rem;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .field input {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 0.82rem;
+        padding: 9px 12px;
+        border-radius: 7px;
+        outline: none;
+        transition: border-color 0.2s;
+        width: 100%;
+      }
+      .field input:focus {
+        border-color: var(--accent);
+      }
+
+      .row2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      /* ── Buttons ── */
+      .btn {
+        border: none;
+        cursor: pointer;
+        border-radius: 8px;
+        font-family: var(--font-ui);
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 11px 18px;
+        transition:
+          opacity 0.2s,
+          transform 0.1s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        justify-content: center;
+      }
+      .btn:active {
+        transform: scale(0.97);
+      }
+      .btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .btn-start {
+        background: var(--accent);
+        color: #0d0f14;
+      }
+      .btn-stop {
+        background: var(--red);
+        color: #fff;
+      }
+      .btn-captcha {
+        background: var(--yellow);
+        color: #0d0f14;
+        animation: pulse-yellow 1.4s ease-in-out infinite;
+        display: none;
+      }
+      .btn-captcha.visible {
+        display: inline-flex;
+      }
+
+      @keyframes pulse-yellow {
+        0%,
+        100% {
+          box-shadow: 0 0 0 0 rgba(247, 201, 72, 0.4);
+        }
+        50% {
+          box-shadow: 0 0 0 8px rgba(247, 201, 72, 0);
+        }
+      }
+
+      /* ── Right panel ── */
+      .panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* ── Stats bar ── */
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        border-bottom: 1px solid var(--border);
+      }
+      .stat {
+        padding: 18px 20px;
+        border-right: 1px solid var(--border);
+      }
+      .stat:last-child {
+        border-right: none;
+      }
+      .stat .val {
+        font-size: 1.7rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        font-family: var(--font-mono);
+        line-height: 1;
+      }
+      .stat .lbl {
+        font-size: 0.7rem;
+        color: var(--muted);
+        margin-top: 4px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .val.green {
+        color: var(--green);
+      }
+      .val.red {
+        color: var(--red);
+      }
+      .val.blue {
+        color: var(--accent);
+      }
+
+      /* ── Progress ── */
+      .progress-bar-wrap {
+        padding: 14px 20px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .progress-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .progress-track {
+        height: 5px;
+        background: var(--border);
+        border-radius: 99px;
+        margin-bottom: 14px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--green));
+        border-radius: 99px;
+        transition: width 0.6s ease;
+        width: 0%;
+      }
+
+      /* ── Log console ── */
+      .log-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px 8px;
+      }
+      .log-header span {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .log-clear {
+        background: none;
+        border: none;
+        color: var(--muted);
+        font-size: 0.72rem;
+        cursor: pointer;
+        font-family: var(--font-ui);
+      }
+      .log-clear:hover {
+        color: var(--red);
+      }
+
+      #log-box {
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px 20px 20px;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        line-height: 1.7;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      #log-box::-webkit-scrollbar {
+        width: 4px;
+      }
+      #log-box::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 99px;
+      }
+
+      .log-line {
+        display: flex;
+        gap: 10px;
+        padding: 1px 0;
+      }
+      .log-line .ts {
+        color: var(--border);
+        flex-shrink: 0;
+      }
+      .log-line.info .msg {
+        color: var(--text);
+      }
+      .log-line.success .msg {
+        color: var(--green);
+      }
+      .log-line.warning .msg {
+        color: var(--yellow);
+      }
+      .log-line.error .msg {
+        color: var(--red);
+      }
+
+      /* ── Captcha overlay ── */
+      #captcha-banner {
+        display: none;
+        margin: 0 20px;
+        background: #241f0f;
+        border: 1px solid var(--yellow);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        font-size: 0.82rem;
+        color: var(--yellow);
+        animation: fadeIn 0.3s ease;
+      }
+      #captcha-banner.visible {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-6px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 860px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+        aside {
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+        .stats {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .stat:nth-child(2) {
+          border-right: none;
+        }
+        .stat:nth-child(3) {
+          border-top: 1px solid var(--border);
+        }
+      }
+      @media (max-width: 480px) {
+        header {
+          padding: 14px 16px;
+        }
+        aside {
+          padding: 18px 14px;
+        }
+        .stats {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      /* Divider */
+      hr.sep {
+        border: none;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ══ HEADER ══ -->
+    <header>
+      <div class="logo">🤖</div>
+      <h1>E-Insta Feedback Bot</h1>
+      <span>Auto-submission dashboard</span>
+      <div class="pill" id="status-pill">● Idle</div>
+    </header>
+
+    <!-- ══ MAIN ══ -->
+    <main>
+      <!-- ══ SIDEBAR ══ -->
+      <aside>
+        <!-- PDF Upload -->
+        <div>
+          <div class="section-label">1 · Upload PDF</div>
+          <div class="upload-zone" id="upload-zone">
+            <input type="file" id="pdf-input" accept=".pdf" />
+            <div class="icon">📄</div>
+            <p>Drop your records PDF here<br />or click to browse</p>
+            <div class="filename" id="file-name"></div>
+          </div>
+          <div
+            id="record-count"
+            style="
+              text-align: center;
+              font-size: 0.75rem;
+              color: var(--muted);
+              margin-top: 8px;
+            "
+          ></div>
+        </div>
+
+        <hr class="sep" />
+
+        <!-- Credentials -->
+        <div>
+          <div class="section-label">2 · Credentials</div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div class="field">
+              <label>Email</label>
+              <input type="email" id="email" placeholder="you@example.com" />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="password" placeholder="••••••••" />
+            </div>
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <!-- Config -->
+        <div>
+          <div class="section-label">3 · Configuration</div>
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div class="row2">
+              <div class="field">
+                <label>Center Code</label>
+                <input type="text" id="center_code" placeholder="e.g. CC001" />
+              </div>
+              <div class="field">
+                <label>EVC Code</label>
+                <input type="text" id="evc_code" placeholder="e.g. EVC123" />
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field">
+                <label>Delay (sec)</label>
+                <input type="number" id="delay" value="3" min="1" max="60" />
+              </div>
+              <div class="field">
+                <label>Max Forms</label>
+                <input
+                  type="number"
+                  id="max_submissions"
+                  value="3000"
+                  min="1"
+                />
+              </div>
+            </div>
+            <div class="field">
+              <label>Captcha Wait (sec)</label>
+              <input type="number" id="captcha_wait" value="120" min="30" />
+            </div>
+          </div>
+        </div>
+
+        <hr class="sep" />
+
+        <!-- Controls -->
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <button class="btn btn-start" id="btn-start" onclick="startBot()">
+            ▶ Start Bot
+          </button>
+          <button
+            class="btn btn-stop"
+            id="btn-stop"
+            onclick="stopBot()"
+            disabled
+          >
+            ■ Stop
+          </button>
+          <button
+            class="btn btn-captcha"
+            id="btn-captcha"
+            onclick="solveCaptcha()"
+          >
+            ✅ I Solved the Captcha
+          </button>
+        </div>
+      </aside>
+
+      <!-- ══ RIGHT PANEL ══ -->
+      <div class="panel">
+        <!-- Stats -->
+        <div class="stats">
+          <div class="stat">
+            <div class="val blue" id="stat-total">0</div>
+            <div class="lbl">Records</div>
+          </div>
+          <div class="stat">
+            <div class="val" id="stat-current">0</div>
+            <div class="lbl">Current</div>
+          </div>
+          <div class="stat">
+            <div class="val green" id="stat-success">0</div>
+            <div class="lbl">Success</div>
+          </div>
+          <div class="stat">
+            <div class="val red" id="stat-fail">0</div>
+            <div class="lbl">Failed</div>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-bar-wrap">
+          <div class="progress-meta">
+            <span id="prog-label">Waiting to start…</span>
+            <span id="prog-pct">0%</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+        </div>
+
+        <!-- Captcha banner -->
+        <div id="captcha-banner">
+          <span style="font-size: 1.3rem">🔴</span>
+          <span
+            ><strong>Captcha required!</strong> Solve the "I am human" in the
+            browser window, then click <em>I Solved the Captcha</em> in the
+            sidebar.</span
+          >
+        </div>
+
+        <!-- Log console -->
+        <div class="log-header">
+          <span>Activity Log</span>
+          <button class="log-clear" onclick="clearLogs()">Clear</button>
+        </div>
+        <div id="log-box">
+          <div class="log-line info">
+            <span class="ts">--:--:--</span
+            ><span class="msg"
+              >Bot ready. Upload a PDF and fill in credentials to begin.</span
+            >
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      /* ── State ── */
+      let pollingTimer = null;
+      let lastLogCount = 0;
+      let recordsLoaded = false;
+
+      /* ── Upload ── */
+      const uploadZone = document.getElementById("upload-zone");
+      const pdfInput = document.getElementById("pdf-input");
+
+      uploadZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        uploadZone.classList.add("drag");
+      });
+      uploadZone.addEventListener("dragleave", () =>
+        uploadZone.classList.remove("drag"),
+      );
+      uploadZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove("drag");
+        const f = e.dataTransfer.files[0];
+        if (f && f.type === "application/pdf") uploadFile(f);
+      });
+      pdfInput.addEventListener("change", (e) => {
+        if (e.target.files[0]) uploadFile(e.target.files[0]);
+      });
+
+      function uploadFile(file) {
+        document.getElementById("file-name").textContent = file.name;
+        document.getElementById("record-count").textContent = "Uploading…";
+        const fd = new FormData();
+        fd.append("pdf", file);
+        fetch("/api/upload", { method: "POST", body: fd })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success) {
+              recordsLoaded = true;
+              document.getElementById("record-count").textContent =
+                `✅  ${d.total_records} records loaded`;
+              document.getElementById("stat-total").textContent =
+                d.total_records;
+              addLocalLog(
+                "success",
+                `PDF loaded — ${d.total_records} records found`,
+              );
+            } else {
+              document.getElementById("record-count").textContent =
+                "❌ " + d.error;
+              addLocalLog("error", d.error);
+            }
+          })
+          .catch(() => {
+            document.getElementById("record-count").textContent =
+              "⚠️ Upload failed (server not running?)";
+            addLocalLog(
+              "warning",
+              "Upload failed — is the Python server running on :5001?",
+            );
+          });
+      }
+
+      /* ── Controls ── */
+      function startBot() {
+        if (!recordsLoaded) {
+          alert("Please upload a PDF first.");
+          return;
+        }
+        const payload = {
+          email: document.getElementById("email").value,
+          password: document.getElementById("password").value,
+          center_code: document.getElementById("center_code").value,
+          evc_code: document.getElementById("evc_code").value,
+          delay: parseFloat(document.getElementById("delay").value),
+          max_submissions: parseInt(
+            document.getElementById("max_submissions").value,
+          ),
+          captcha_wait_seconds: parseInt(
+            document.getElementById("captcha_wait").value,
+          ),
+        };
+        if (!payload.email || !payload.password) {
+          alert("Email and password are required.");
+          return;
+        }
+
+        fetch("/api/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success) {
+              setRunning(true);
+              startPolling();
+            } else {
+              alert(d.error || "Failed to start");
+            }
+          })
+          .catch(() =>
+            addLocalLog(
+              "warning",
+              "Cannot reach server — is Python running on :5001?",
+            ),
+          );
+      }
+
+      function stopBot() {
+        fetch("/api/stop", { method: "POST" }).catch(() => {});
+        addLocalLog("warning", "Stop requested…");
+      }
+
+      function solveCaptcha() {
+        fetch("/api/captcha_done", { method: "POST" })
+          .then(() => {
+            document.getElementById("btn-captcha").classList.remove("visible");
+            document
+              .getElementById("captcha-banner")
+              .classList.remove("visible");
+            addLocalLog("success", "Captcha confirmed — bot continuing");
+          })
+          .catch(() => addLocalLog("error", "Failed to confirm captcha"));
+      }
+
+      /* ── Polling ── */
+      function startPolling() {
+        if (pollingTimer) return;
+        pollingTimer = setInterval(pollStatus, 2000);
+      }
+      function stopPolling() {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+      }
+
+      function pollStatus() {
+        fetch("/api/status")
+          .then((r) => r.json())
+          .then((d) => {
+            /* stats */
+            document.getElementById("stat-total").textContent = d.records_total;
+            document.getElementById("stat-current").textContent =
+              d.current_index;
+            document.getElementById("stat-success").textContent =
+              d.success_count;
+            document.getElementById("stat-fail").textContent = d.fail_count;
+
+            /* progress */
+            const pct = d.progress_percent || 0;
+            document.getElementById("progress-fill").style.width = pct + "%";
+            document.getElementById("prog-pct").textContent = pct + "%";
+            document.getElementById("prog-label").textContent = d.running
+              ? `Submitting form ${d.current_index + 1} of ${Math.min(d.records_total, parseInt(document.getElementById("max_submissions").value))}`
+              : "Idle";
+
+            /* captcha */
+            const showCap = !!d.waiting_for_captcha;
+            document
+              .getElementById("btn-captcha")
+              .classList.toggle("visible", showCap);
+            document
+              .getElementById("captcha-banner")
+              .classList.toggle("visible", showCap);
+
+            /* logs (only new ones) */
+            if (d.logs && d.logs.length > lastLogCount) {
+              const newLogs = d.logs.slice(lastLogCount);
+              newLogs.forEach((l) => addLogLine(l.time, l.message, l.type));
+              lastLogCount = d.logs.length;
+            }
+
+            /* running state */
+            if (!d.running && pollingTimer) {
+              setRunning(false);
+              stopPolling();
+            }
+          })
+          .catch(() => {});
+      }
+
+      /* ── UI state helpers ── */
+      function setRunning(running) {
+        document.getElementById("btn-start").disabled = running;
+        document.getElementById("btn-stop").disabled = !running;
+        const pill = document.getElementById("status-pill");
+        pill.textContent = running ? "● Running" : "● Idle";
+        pill.className = "pill " + (running ? "running" : "");
+      }
+
+      /* ── Log helpers ── */
+      function addLogLine(ts, msg, type) {
+        const box = document.getElementById("log-box");
+        const line = document.createElement("div");
+        line.className = "log-line " + (type || "info");
+        line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${escHtml(msg)}</span>`;
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+      }
+      function addLocalLog(type, msg) {
+        const ts = new Date().toTimeString().slice(0, 8);
+        addLogLine(ts, msg, type);
+      }
+      function clearLogs() {
+        document.getElementById("log-box").innerHTML = "";
+        lastLogCount = 0;
+      }
+      function escHtml(s) {
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+      }
+    </script>
+  </body>
+</html>
